@@ -8,8 +8,6 @@
 seeds are now pairs [start, range]
 - there are now a HUGE NUMBER of seeds
 
-TODO: how to we limit the number of seeds
-
 for each seed
     seed to soil
     soil to fertilizer
@@ -29,66 +27,21 @@ import bisect
 verbose = False
 
 '''
-{
+types_map={
 "curr": {
             "next": "xxx",
-            "array": [(int)], # sorted
-            "dict":
-               {
-                src_range_start(str): [dest range start(int), range length(int)]
-               }
-        }
- ...
-}
-
-
-"curr": {
-            "next": "xxx",
-            "array": [(int)], # sorted
-            "dict":
-               {
-                src_range_start(str): [dest range start(int), range length(int)]
-               }
+            "array": [(destination range start, source range start, length), ...], # sorted by source range
         }
  ...
 }
 '''
-
 types_map = {}
 
 seeds = []
 
-seed_map = {}
-
-def print_curr (curr):
-
-    print ("curr= { 'next': %s," % (curr["next"]))
-    print ("        'array': %s," % (curr["array"]))
-    print ("        'dict':")
-
-    for d in sorted(curr["dict"]):
-
-        dd = curr["dict"][d]
-
-        print ("%s: %s" % (d, dd))
-        print ("    src[%d-%d]. dest=[%d-%d] (%d)" % 
-            (d      , d + dd[1], 
-            dd[0]   , dd[0] + dd[1],
-            dd[0] - d))
-    print ("}")
-
-
-def get_dest_value (curr
-                    ,v
-                    ):
-
-    verbose and print ("get_dest_value: in: v=", v)
-    verbose and print_curr(curr)
-
-    arr = curr["array"]
-    dct = curr["dict"]
-
-    i = bisect.bisect_left(arr, v)      # index for value less than or equal to v
+def get_idx (arr,v):
+    
+    i = bisect.bisect_left(arr, v, key=lambda x: x[1])  
 
     if i != len(arr):
         if arr[i] == v:    
@@ -99,26 +52,56 @@ def get_dest_value (curr
     else:
         if i != 0:
             i = i-1
+   
+    return i
 
-    verbose and print ("get_dest_value: bisect arr=", arr, " v=", v, " i=", i)
+'''
+IN  xxxxxxxxxxxxxxxxx
+       xxxxxxx  xxxxxxx
+OUT xxxyyyyyyyxxYYYYY       4 ranges
+'''
+def map_ranges (curr
+                ,rng    # [begin, end)
+                ):
 
-    min_val = arr[i] 
-    max_val = arr[i] + dct[arr[i]][1] - 1
+    arr = curr["array"]
 
-    verbose and print ("get_dest_value: i=", i, " min=", min_val, " max=", max_val)
+    out = []
 
-    diff = v - min_val
+    # [(destination range start, source range start, length), ...]
 
-    if v >= min_val and v < max_val:
-        ret = dct[arr[i]][0] + diff
+    v = rng[0]
+    end = rng[0] + rng[1]
 
-        verbose and print ("get_dest_value: ret=", ret, "\n")
-        return ret
-      
-    verbose and print ("get_dest_value: no match, ret=", v, "\n")
+    idx = get_idx(arr,v)
 
-    return v
+    while v < end and idx < len(arr):
 
+        min_src_val = arr[idx][1] 
+        max_src_val = arr[idx][1] + arr[idx][2] - 1
+
+        diff_valdiff = arr[idx][1] - arr[idx][0]        # src_start - dest_start 
+
+        if v >= min_src_val and v <= max_src_val:
+
+            if end > max_src_val:
+                src_rng_start   = v
+                src_rng_end     = max_src_val
+
+                idx = idx + 1
+            else:
+                src_rng_start   = v
+                src_rng_end     = end
+                
+            out.append(src_rng_start-diff_val, src_rng_end-diff_val+1)
+
+            v = src_rng_end+1
+                
+        else:
+            out.append(v,v+1)
+            v = v+1
+
+    return out
 
 
 
@@ -142,14 +125,14 @@ for line in sys.stdin:
             print ("invalid seeds - %s" % (seeds_pre))
             sys.exit (-1)
 
-        print ("seeds_pre: %s" % (seeds_pre))
+        # print ("seeds_pre: %s" % (seeds_pre))
 
         # 1, 3
         for i in range(0,len(seeds_pre), 2):
             start = int(seeds_pre[i])
             num = int(seeds_pre[i+1])
 
-            seed_map[start] = num
+            seeds.append((start,num))
 
     elif (match := re.search(r'(.*)-to-(.*) map:',line)):
 
@@ -165,7 +148,6 @@ for line in sys.stdin:
         types_map[curr] = { 
                                 "next": nxt,
                                 "array": [],
-                                "dict": {}
                               }
 
     elif len(line) > 0:
@@ -182,25 +164,22 @@ for line in sys.stdin:
         # [1] = source range start
         # [2] = range length
 
-        types_map[curr]["array"].append(int(ranges[1]))
-        types_map[curr]["dict"][int(ranges[1])] = [int(ranges[0]), int(ranges[2])]
+        types_map[curr]["array"].append((int(ranges[0]), int(ranges[1]), int(ranges[2])))
 
-
-# for i in range(len(seeds)):
-#     seeds[i] = int(seeds[i])
-
-# print ("seeds", seeds)
-# print ("")
+print ("seeds = ", seeds)
 
 print ("types_map=")
 
 for t in types_map:
 
-    types_map[t]["array"].sort()
+    types_map[t]["array"].sort(key=lambda x: x[1])
 
     print (t, types_map[t])
 
 print ("")
+
+sys.exit(0)
+
 
 curr_min_seed   = None
 curr_min_val    = None
@@ -212,19 +191,15 @@ for i in seed_map:
     start = i
     end = i+seed_map[i]
 
-    print ("start=", start)
-
-    for s in range(start,end):
+    range_list = map_ranges (types_map["seed"], (start, end)) # val=num
     
-        num = get_dest_value (types_map["seed"], s) # val=num
-    
-        nxt = types_map["seed"]["next"]     # next label
+    nxt = types_map["seed"]["next"]     # next label
 
         while True:
 
             curr = nxt      # label
 
-            num = get_dest_value (types_map[curr], num)
+            range_list = map_range (get_dest_value (range_list, (start, end))
 
             nxt = types_map[curr]["next"]
 
