@@ -5,8 +5,6 @@
 
 import sys
 
-sys.setrecursionlimit(10000)
-
 matrix = []
 
 # (y,x)
@@ -21,7 +19,7 @@ max_steps = 0
 
 pos_min_steps_dict = {}
 
-verbose = True
+verbose = False
 
 def valid_position (pos):
 
@@ -73,97 +71,99 @@ def valid_start_move (curr, nxt):
         if nxt_c == '|' or nxt_c == '7' or nxt_c == 'F':
             return True
     elif diff_y > 0:    # down (south)
-        if nxt_c == '|' or nxt_c == 'L' or nxt_c == 'W':
+        if nxt_c == '|' or nxt_c == 'L' or nxt_c == 'J':
             return True
 
     return False
         
 
-def dfs (pos, visited, path, num_steps):
+def dfs_iter (pos, visited, path, num_steps):
 
-    y = pos[0]
-    x = pos[1]
+    stack = []
 
-    verbose and print ("dfs: ENTER"
-        " y", y
-        ," x", x 
-        ," char", matrix[y][x] 
-        ," path", path
-        ," visited", visited
-        ," num_steps", num_steps
-        )
+    stack.append((pos,num_steps))
 
+    while len(stack) != 0:
 
-    if pos == start and num_steps > 1:
-        # we found path
-        print ("dfs: PATH FOUND")
-        return True
+        curr = stack.pop()
+
+        curr_pos        = curr[0]
+        lcl_num_steps   = curr[1]
+
+        y = curr_pos[0]
+        x = curr_pos[1]
+
+        visited.add(curr_pos)
+        path.append(curr_pos)
+
+        verbose and print ("dfs_iter: ENTER"
+            " y", y
+            ," x", x 
+            ," char", matrix[y][x] 
+            ," path", path
+            ," visited", visited
+            ," num_steps", num_steps
+            )
+
+        if curr_pos == start and lcl_num_steps > 1:
+            # we found path
+            #print ("dfs_iter: PATH FOUND. path=", path)
+            return True
     
-    if num_steps > 1 and start in visited:
-        visited.remove(start)
+        if lcl_num_steps > 1 and start in visited:
+            visited.remove(start)
 
-    if pos in pos_min_steps_dict:
-        if num_steps < pos_min_steps_dict[pos]:
-            pos_min_steps_dict[pos] = num_steps
-            print ("dfs: min steps to ", pos, " is ", num_steps)
-    else:
-        pos_min_steps_dict[pos] = num_steps
-        print ("dfs: min steps to ", pos, " is ", num_steps)
+        if curr_pos in pos_min_steps_dict:
+            if lcl_num_steps < pos_min_steps_dict[curr_pos]:
+                pos_min_steps_dict[curr_pos] = lcl_num_steps
+                verbose and print ("dfs_iter: min steps to ", curr_pos, " is ", lcl_num_steps)
+        else:
+            pos_min_steps_dict[curr_pos] = lcl_num_steps
+            verbose and print ("dfs_iter: min steps to ", curr_pos, " is ", lcl_num_steps)
+
+        nxt = []
+
+        if matrix[y][x] == '|':
+
+            nxt.append((y-1,x))
+            nxt.append((y+1,x))
+
+        elif matrix[y][x] == '-':
+
+            nxt.append((y,x-1))
+            nxt.append((y,x+1))
+
+        elif matrix[y][x] == 'L':
+
+            nxt.append((y-1,x))
+            nxt.append((y,x+1))
+
+        elif matrix[y][x] == 'J':
+
+            nxt.append((y-1,x))
+            nxt.append((y,x-1))
+
+        elif matrix[y][x] == '7':
+
+            nxt.append((y+1,x))
+            nxt.append((y,x-1))
+
+        elif matrix[y][x] == 'F':
+
+            nxt.append((y+1,x))
+            nxt.append((y,x+1))
+
+        else:
+
+            print ("INVALID CHARACTER - ", matrix[y][x])
+            sys.exit(-1)
 
 
-    nxt = []
-
-    if matrix[y][x] == '|':
-
-        nxt.append((y-1,x))
-        nxt.append((y+1,x))
-
-    elif matrix[y][x] == '-':
-
-        nxt.append((y,x-1))
-        nxt.append((y,x+1))
-
-    elif matrix[y][x] == 'L':
-
-        nxt.append((y-1,x))
-        nxt.append((y,x+1))
-
-    elif matrix[y][x] == 'J':
-
-        nxt.append((y-1,x))
-        nxt.append((y,x-1))
-
-    elif matrix[y][x] == '7':
-
-        nxt.append((y+1,x))
-        nxt.append((y,x-1))
-
-    elif matrix[y][x] == 'F':
-
-        nxt.append((y+1,x))
-        nxt.append((y,x+1))
-
-    else:
-
-        print ("INVALID CHARACTER - ", matrix[y][x])
-        sys.exit(-1)
-
-
-    for n in nxt:
+        for n in nxt:
    
-        if valid_position(n) and n not in visited:
-        
-            visited.add(n)
-            path.append(n)
+            if valid_position(n) and n not in visited:
 
-            rc = dfs(n, visited, path, num_steps+1)
-
-            if rc:
-                return rc
-
-            path.pop()
-            visited.remove(n)
-
+                stack.append((n,lcl_num_steps+1))
 
 
 def find_loop ():
@@ -172,8 +172,6 @@ def find_loop ():
     x = start[1]
 
     path = []
-
-    path.append(start)
 
     visited = set()
 
@@ -190,12 +188,9 @@ def find_loop ():
             visited.add(pos)
             path.append(pos)
 
-            verbose and print ("\nfind_loop: pos=", pos)
+            print ("\nfind_loop: pos=", pos)
 
-            dfs (pos, visited, path, 1)
-
-            path.pop()
-            visited.remove(pos)
+            dfs_iter (pos, visited, path, 1)
 
 
 #==========
@@ -253,13 +248,8 @@ find_loop()
 max_value = 0
 
 for x in pos_min_steps_dict:
-    print ("pos:", x, " min steps:", pos_min_steps_dict[x])
+    verbose and print ("pos:", x, " min steps:", pos_min_steps_dict[x])
     if pos_min_steps_dict[x] > max_value:
         max_value = pos_min_steps_dict[x]
 
 print ("max value:", max_value)
- 
-
-
-
-
